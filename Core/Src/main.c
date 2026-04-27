@@ -25,7 +25,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "motor.h"
+#include "encoder.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -102,9 +103,20 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  Motor_SetSpeed(MOTOR_LEFT,300);
+	  Motor_SetSpeed(MOTOR_RIGHT, 300);
+	  HAL_Delay(2000);
 
+	  Motor_StopAll();
+	  HAL_Delay(1000);
 
+	  Motor_SetSpeed(MOTOR_LEFT,-300);
+	  Motor_SetSpeed(MOTOR_RIGHT, -300);
 
+	  Motor_StopAll();
+	  HAL_Delay(1000);
+
+	  printf("Left: %d, Right: %d\r\n",Encoder_GetLeftSpeed(),Encoder_GetRightSpeed());
 
     /* USER CODE END WHILE */
 

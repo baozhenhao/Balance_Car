@@ -186,6 +186,17 @@ void SysTick_Handler(void)
 
   /* USER CODE END SysTick_IRQn 0 */
   HAL_IncTick();
+
+  static uint16_t control_counter = 0;
+  control_counter++;
+
+  if(control_counter >= 5)
+  {
+	  control_counter = 0;
+	  Encoder_Update();
+//	  MPU6050_Update_Angle();
+//	  Balance_Control();
+  }
   /* USER CODE BEGIN SysTick_IRQn 1 */
 
   /* USER CODE END SysTick_IRQn 1 */
