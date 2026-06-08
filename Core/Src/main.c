@@ -96,28 +96,45 @@ int main(void)
   MX_USART1_UART_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+  // 1. 点亮小蓝板的指示灯，宣告大脑开机
+   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+
+   // 2. 拧车钥匙：启动电机PWM和编码器（极其重要！！！）
+   Motor_Init();
+   Encoder_Init(); // 如果你有封装编码器的初始化，记得也加这里，不然读不到速度！
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  Motor_SetSpeed(MOTOR_LEFT,300);
-	  Motor_SetSpeed(MOTOR_RIGHT, 300);
-	  HAL_Delay(2000);
+	  // 【动作1：前进】
+	        Motor_SetSpeed(MOTOR_LEFT, 500);
+	        Motor_SetSpeed(MOTOR_RIGHT, 500);
+	        // 狂刷20次速度打印（耗时约2秒），你能看到速度从0飙升到满速！
+	        for(int i=0; i<20; i++) {
+	            printf("Forward - L: %d, R: %d\r\n", Encoder_GetLeftSpeed(), Encoder_GetRightSpeed());
+	            HAL_Delay(100);
+	        }
 
-	  Motor_StopAll();
-	  HAL_Delay(1000);
+	        // 【动作2：刹车】
+	        Motor_StopAll();
+	        printf("STOP!\r\n");
+	        HAL_Delay(1000); // 停1秒
 
-	  Motor_SetSpeed(MOTOR_LEFT,-300);
-	  Motor_SetSpeed(MOTOR_RIGHT, -300);
+	        // 【动作3：后退】
+	        Motor_SetSpeed(MOTOR_LEFT, -500);
+	        Motor_SetSpeed(MOTOR_RIGHT, -500);
+	        // 再刷20次速度打印（耗时约2秒），你能看到速度变成负数！
+	        for(int i=0; i<20; i++) {
+	            printf("Reverse - L: %d, R: %d\r\n", Encoder_GetLeftSpeed(), Encoder_GetRightSpeed());
+	            HAL_Delay(100);
+	        }
 
-	  Motor_StopAll();
-	  HAL_Delay(1000);
-
-	  printf("Left: %d, Right: %d\r\n",Encoder_GetLeftSpeed(),Encoder_GetRightSpeed());
-
+	        // 【动作4：刹车】
+	        Motor_StopAll();
+	        printf("STOP!\r\n");
+	        HAL_Delay(1000); // 停1秒
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
