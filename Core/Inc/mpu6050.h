@@ -30,9 +30,8 @@ extern float MPU_Roll;
 uint8_t MPU6050_Init(void);
 uint8_t MPU6050_ReadAccel(MPU6050_Accel_t *accel);
 uint8_t MPU6050_ReadGyro(MPU6050_Gyro_t *gyro);
-void MPU6050_ReadAll(MPU6050_Accel_t *accel, MPU6050_Gyro_t *gyro);
+//void MPU6050_ReadAll(MPU6050_Accel_t *accel, MPU6050_Gyro_t *gyro);
 
-// 新增：姿态解算核心算法！
 void MPU6050_GetAngle(float dt);
 
 #endif /* INC_MPU6050_H_ */
