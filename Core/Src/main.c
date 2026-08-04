@@ -64,6 +64,8 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+volatile uint8_t ctrl_flag = 0;
+
 /* USER CODE END 0 */
 
 /**
@@ -102,13 +104,17 @@ int main(void)
   MX_USART1_UART_Init();
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
+
   // 1. 点亮小蓝板绿色指示灯
-    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 
     // 2. 依次唤醒三大器官 (顺序不能乱)
    MPU6050_Init();    // 唤醒小脑
    Encoder_Init();    // 唤醒测速神经
-   Motor_Init();      // 唤醒肌肉 (初始速度为0)
+   Motor_Init();
+   HAL_TIM_Base_Start_IT(&htim1);
+
+
    // =================== 软件 I2C 强行唤醒 MPU6050 开始 ===================
 //    GPIO_InitTypeDef GPIO_InitStruct = {0};
 //    __HAL_RCC_GPIOA_CLK_ENABLE();
@@ -155,38 +161,43 @@ int main(void)
 //    HAL_Delay(100);
 
     // 3. 开启定时器中断（用来跑闭环控制 Control_Loop，假设用的是定时器 TIM1）
-    HAL_TIM_Base_Start_IT(&htim1);
+//    HAL_TIM_Base_Start_IT(&htim1);
 
   /* USER CODE END 2 */
 
 
    /* USER CODE BEGIN WHILE */
+   uint32_t last_ctrl   = 0;
+   uint32_t last_send   = 0;
 
-uint32_t test_count = 0;
+	    while (1)
+   {
+
+	    	if (ctrl_flag)          /* 标志来了才做控制 */
+	    	    {
+	    	        ctrl_flag = 0;
+	    	        MPU6050_GetAngle(0.005f);   /* 读MPU + 滤波 —— 在main上下文，不阻塞系统 */
+	    	        /* ===== PID 控制放这里 ===== */
+	    	    }
+//	    	/* 每 5ms：读MPU + 互补滤波（dt 用真实时间，比写死 0.005f 还准） */
+//	    	    if (HAL_GetTick() - last_ctrl >= 5)
+//	    	    {
+//	    	        float dt = (HAL_GetTick() - last_ctrl) / 1000.0f;
+//	    	        last_ctrl = HAL_GetTick();
+//	    	        MPU6050_GetAngle(dt);
+//	    	    }
+	    	    /* 每 50ms：蓝牙发一次 */
+	    	    if (HAL_GetTick() - last_send >= 20)
+	    	    {
+	    	        last_send = HAL_GetTick();
+	    	        char buf[80];
+	    	        int len = sprintf(buf, "%.2f,%.2f,%.2f,%.2f\r\n",
+	    	                          (double)MPU_Pitch, (double)MPU_Roll,
+	    	                          (double)Accel_Pitch, (double)Accel_Roll);
+	    	        HAL_UART_Transmit(&huart1, (uint8_t*)buf, len, 100);
+	    	    }
 
 
-
-	     while (1)
-	     {
-	         test_count++;
-
-	         // 1. 纯粹用于蓝牙打印监视（50ms 打印一次即可）
-	         uint8_t pin_status = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12);
-	         char txt_buf[128];
-	         int32_t p_show = (int32_t)(MPU_Pitch * 100.0f);
-	         int32_t r_show = (int32_t)(MPU_Roll * 100.0f);
-
-	         sprintf(txt_buf, "Cnt:%ld | PIN12:%d | P:%ld.%02ld R:%ld.%02ld | L:%d R:%d\r\n",
-	                 test_count,
-	                 pin_status,
-	                 p_show / 100, (p_show < 0 ? -p_show : p_show) % 100,
-	                 r_show / 100, (r_show < 0 ? -r_show : r_show) % 100,
-	                 enc_left_speed, enc_right_speed);
-
-	         HAL_UART_Transmit(&huart1, (uint8_t *)txt_buf, strlen(txt_buf), HAL_MAX_DELAY);
-
-	         HAL_Delay(50);
-/
 
     /* USER CODE END WHILE */
 
@@ -236,7 +247,15 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+    if (htim->Instance == TIM1) {
 
+
+    	ctrl_flag = 1;
+
+    }
+}
 /* USER CODE END 4 */
 
 /**

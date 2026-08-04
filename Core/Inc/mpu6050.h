@@ -24,8 +24,12 @@ typedef struct {
     int16_t gz;
 } MPU6050_Gyro_t;
 
-extern float MPU_Pitch;
-extern float MPU_Roll;
+extern volatile float MPU_Pitch;
+extern volatile float MPU_Roll;
+extern volatile float Accel_Pitch;   // 新增：加速度计直接算出的 Pitch
+extern volatile float Accel_Roll;    // 新增：加速度计直接算出的 Roll
+//extern float Gyro_Integrated_Pitch; // 新增：陀螺仪积分角度
+//extern float Gyro_Integrated_Roll;
 
 uint8_t MPU6050_Init(void);
 uint8_t MPU6050_ReadAccel(MPU6050_Accel_t *accel);

@@ -6,10 +6,14 @@
 //#define SW_SDA_L()     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET)
 //#define SW_SDA_READ()  HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12)
 //// ================================================================
-float MPU_Pitch = 0.0f;
-float MPU_Roll  = 0.0f;
-float MPU_Gyro_X = 0.0f;
-float MPU_Gyro_Y = 0.0f;
+volatile float MPU_Pitch = 0.0f;
+volatile float MPU_Roll  = 0.0f;
+volatile float MPU_Gyro_X = 0.0f;
+volatile float MPU_Gyro_Y = 0.0f;
+volatile float Accel_Pitch = 0.0f;
+volatile float Accel_Roll = 0.0f;
+float Gyro_Integrated_Pitch = 0.0f; // 纯陀螺仪积分角度
+float Gyro_Integrated_Roll = 0.0f;
 
 static uint8_t MPU6050_WriteReg(uint8_t reg, uint8_t data)
 {
@@ -78,8 +82,8 @@ void MPU6050_GetAngle(float dt)
     MPU6050_Accel_t accel;
     MPU6050_Gyro_t gyro;
 
-    MPU6050_ReadAccel(MPU6050_Accel_t *accel);
-    MPU6050_ReadGyro(MPU6050_Gyro_t *gyro);
+    MPU6050_ReadAccel(&accel);
+    MPU6050_ReadGyro(&gyro);
 //    MPU6050_ReadAll(&accel, &gyro);
 
     float acc_x = accel.ax / 16384.0f;
@@ -89,11 +93,15 @@ void MPU6050_GetAngle(float dt)
     MPU_Gyro_X = gyro.gx / 131.0f;
     MPU_Gyro_Y = gyro.gy / 131.0f;
 
-    float accel_pitch = atan2(acc_y, acc_z) * 57.296f;
-    float accel_roll  = atan2(-acc_x, acc_z) * 57.296f;
+    float up = -acc_x;
+    Accel_Pitch = atan2(acc_y, up) * 57.296f;
+    Accel_Roll  = atan2(acc_z, up) * 57.296f;
 
-    MPU_Pitch = 0.98f * (MPU_Pitch + MPU_Gyro_X * dt) + 0.02f * accel_pitch;
-    MPU_Roll  = 0.98f * (MPU_Roll  + MPU_Gyro_Y * dt) + 0.02f * accel_roll;
+    Gyro_Integrated_Pitch += MPU_Gyro_X * dt;
+    Gyro_Integrated_Roll  += MPU_Gyro_Y * dt;
+
+    MPU_Pitch = 0.99f * (MPU_Pitch + MPU_Gyro_X * dt) + 0.01f * Accel_Pitch;
+    MPU_Roll  = 0.98f * (MPU_Roll  + MPU_Gyro_Y * dt) + 0.02f * Accel_Roll;
 }
 
 
