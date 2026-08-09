@@ -9,7 +9,6 @@
 
 void Motor_Init(void);
 void Motor_SetSpeed(uint8_t motor,int16_t speed);
-void Motor_Stop(uint8_t motor);
 void Motor_StopAll(void);
 
 #endif /* INC_MOTOR_H_ */

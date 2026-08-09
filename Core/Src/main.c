@@ -30,6 +30,8 @@
 #include "encoder.h"
 #include "mpu6050.h"
 #include "string.h"
+#include "bluetooth.h"
+#include "pid.h"
 
 
 /* USER CODE END Includes */
@@ -52,7 +54,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+PID_t balance_pid;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -113,7 +115,11 @@ int main(void)
    Encoder_Init();    // 唤醒测速神经
    Motor_Init();
    HAL_TIM_Base_Start_IT(&htim1);
-
+   PID_Init(&balance_pid, 99.0f, 0.0f, 0.8f, -800.0f, 800.0f);
+   balance_pid.use_integral = 0;
+   BT_RxStart();
+   HAL_Delay(500);                  /* 等传感器上电稳定 */
+   MPU6050_CalibrateZero();
 
    // =================== 软件 I2C 强行唤醒 MPU6050 开始 ===================
 //    GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -165,37 +171,35 @@ int main(void)
 
   /* USER CODE END 2 */
 
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
 
-   /* USER CODE BEGIN WHILE */
-   uint32_t last_ctrl   = 0;
    uint32_t last_send   = 0;
+   volatile float balance_out = 0;
 
 	    while (1)
    {
 
 	    	if (ctrl_flag)          /* 标志来了才做控制 */
 	    	    {
-	    	        ctrl_flag = 0;
-	    	        MPU6050_GetAngle(0.005f);   /* 读MPU + 滤波 —— 在main上下文，不阻塞系统 */
+	    		ctrl_flag = 0;
+	    		        MPU6050_GetAngle(0.005f);
+	    		        balance_out = PID_Update(&balance_pid, -0.5f, MPU_Pitch, 0.005f);
+	    		        Motor_SetSpeed(MOTOR_LEFT,  (int16_t)balance_out);
+	    		        Motor_SetSpeed(MOTOR_RIGHT, (int16_t)balance_out);
 	    	        /* ===== PID 控制放这里 ===== */
 	    	    }
-//	    	/* 每 5ms：读MPU + 互补滤波（dt 用真实时间，比写死 0.005f 还准） */
-//	    	    if (HAL_GetTick() - last_ctrl >= 5)
-//	    	    {
-//	    	        float dt = (HAL_GetTick() - last_ctrl) / 1000.0f;
-//	    	        last_ctrl = HAL_GetTick();
-//	    	        MPU6050_GetAngle(dt);
-//	    	    }
+
 	    	    /* 每 50ms：蓝牙发一次 */
-	    	    if (HAL_GetTick() - last_send >= 20)
-	    	    {
-	    	        last_send = HAL_GetTick();
-	    	        char buf[80];
-	    	        int len = sprintf(buf, "%.2f,%.2f,%.2f,%.2f\r\n",
-	    	                          (double)MPU_Pitch, (double)MPU_Roll,
-	    	                          (double)Accel_Pitch, (double)Accel_Roll);
-	    	        HAL_UART_Transmit(&huart1, (uint8_t*)buf, len, 100);
-	    	    }
+	    	if (HAL_GetTick() - last_send >= 50)
+	    	{
+	    	    last_send = HAL_GetTick();
+	    	    Encoder_Update();
+	    	    /* 一行 printf 搞定，自动走 _write → 蓝牙 */
+	    	    printf("%.2f,%.2f,%.0f,%d,%d\r\n",
+	    	                   MPU_Pitch, MPU_Roll, (double)balance_out,
+	    	                   (int)enc_left_speed, (int)enc_right_speed);
+	    	}
 
 
 
