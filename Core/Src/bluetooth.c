@@ -3,6 +3,7 @@
 #include "pid.h"        /* 用 PID_t / PID_SetGains */
 #include <stdio.h>
 #include <string.h>
+#include "control.h"
 
 extern UART_HandleTypeDef huart1;
 
@@ -81,17 +82,32 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 /* 解析命令：手机发送  "kp=2500,kd=80"  →  Kp=25.00, Kd=0.80 */
 void BT_ParseLine(char *line)
 {
-    int kp_x, kd_x;
+
+    int kp_x, kd_x, skp_x, ski_x, tr_x;
+    /* ① 直立环：kp=9900,kd=50 */
     if (sscanf(line, "kp=%d,kd=%d", &kp_x, &kd_x) == 2)
     {
-        extern PID_t balance_pid;              /* 指向 main 里定义的直立环PID */
-
-        PID_SetGains(&balance_pid, kp_x / 100.0f, 0.0f, kd_x / 100.0f);
-
-        /* 回发确认：上位机看到 OK 表示改成功 */
+        PID_SetGains(&balance_pid, kp_x/100.0f, 0.0f, kd_x/100.0f);
         char ack[64];
         int n = sprintf(ack, "KP=%.2f KD=%.2f OK\r\n",
                         balance_pid.kp, balance_pid.kd);
-        HAL_UART_Transmit_IT(&huart1, (uint8_t *)ack, n);
+        HAL_UART_Transmit_IT(&huart1, (uint8_t*)ack, n);
+    }
+    /* ② 速度环：skp=60,ski=3  →  Kp=0.60, Ki=0.03 */
+    else if (sscanf(line, "skp=%f,ski=%f", &skp_x, &ski_x) == 2)
+    {
+        PID_SetGains(&speed_pid, skp_x/100.0f, ski_x/100.0f, 0.0f);
+        char ack[64];
+        int n = sprintf(ack, "SKP=%.2f SKI=%.3f OK\r\n",
+                        speed_pid.kp, speed_pid.ki);
+        HAL_UART_Transmit_IT(&huart1, (uint8_t*)ack, n);
+    }
+    /* ③ 目标角：tr=130  →  1.30° */
+    else if (sscanf(line, "tr=%d", &tr_x) == 1)
+    {
+        angle_target = tr_x / 100.0f;
+        char ack[64];
+        int n = sprintf(ack, "TR=%.2f OK\r\n", (double)angle_target);
+        HAL_UART_Transmit_IT(&huart1, (uint8_t*)ack, n);
     }
 }

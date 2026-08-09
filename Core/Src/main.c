@@ -32,7 +32,7 @@
 #include "string.h"
 #include "bluetooth.h"
 #include "pid.h"
-
+#include "control.h"
 
 /* USER CODE END Includes */
 
@@ -54,7 +54,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-PID_t balance_pid;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -115,91 +115,45 @@ int main(void)
    Encoder_Init();    // 唤醒测速神经
    Motor_Init();
    HAL_TIM_Base_Start_IT(&htim1);
-   PID_Init(&balance_pid, 99.0f, 0.0f, 0.8f, -800.0f, 800.0f);
-   balance_pid.use_integral = 0;
+   Control_Init();
    BT_RxStart();
    HAL_Delay(500);                  /* 等传感器上电稳定 */
    MPU6050_CalibrateZero();
 
-   // =================== 软件 I2C 强行唤醒 MPU6050 开始 ===================
-//    GPIO_InitTypeDef GPIO_InitStruct = {0};
-//    __HAL_RCC_GPIOA_CLK_ENABLE();
-//
-//    GPIO_InitStruct.Pin = GPIO_PIN_11 | GPIO_PIN_12;
-//    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
-//    GPIO_InitStruct.Pull = GPIO_PULLUP;
-//    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-//    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-//
-//    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET);
-//    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET);
-//
-//    uint32_t d;
-//    // [Start]
-//    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET);   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET);   d=30; while(d--);
-//    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET); d=30; while(d--);
-//    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET); d=30; while(d--);
-//    // [Send 0xD0]
-//    uint8_t val1 = 0xD0;
-//    for(int i=0; i<8; i++) {
-//        if(val1 & 0x80) HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET); else HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
-//        val1 <<= 1; d=15; while(d--); HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET); d=15; while(d--); HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET); d=15; while(d--);
-//    }
-//    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET); HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET); d=15; while(d--); HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET); d=15; while(d--);
-//    // [Send 0x6B]
-//    uint8_t val2 = 0x6B;
-//    for(int i=0; i<8; i++) {
-//        if(val2 & 0x80) HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET); else HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
-//        val2 <<= 1; d=15; while(d--); HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET); d=15; while(d--); HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET); d=15; while(d--);
-//    }
-//    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET); HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET); d=15; while(d--); HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET); d=15; while(d--);
-//    // [Send 0x00]
-//    uint8_t val3 = 0x00;
-//    for(int i=0; i<8; i++) {
-//        if(val3 & 0x80) HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET); else HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
-//        val3 <<= 1; d=15; while(d--); HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET); d=15; while(d--); HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET); d=15; while(d--);
-//    }
-//    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET); HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET); d=15; while(d--); HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET); d=15; while(d--);
-//    // [Stop]
-//    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET); d=30; while(d--); HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET); d=30; while(d--);
-//    // =================== 软件 I2C 强行唤醒 MPU6050 结束 ===================
-//
-//    HAL_Delay(100);
 
-    // 3. 开启定时器中断（用来跑闭环控制 Control_Loop，假设用的是定时器 TIM1）
-//    HAL_TIM_Base_Start_IT(&htim1);
 
   /* USER CODE END 2 */
 
-  /* Infinite loop */
+
   /* USER CODE BEGIN WHILE */
 
    uint32_t last_send   = 0;
-   volatile float balance_out = 0;
+   uint32_t last_speed = 0;
 
 	    while (1)
    {
 
-	    	if (ctrl_flag)          /* 标志来了才做控制 */
+	    	/* 5ms：直立环（TIM1 ctrl_flag 触发） */
+	    	    if (ctrl_flag)
 	    	    {
-	    		ctrl_flag = 0;
-	    		        MPU6050_GetAngle(0.005f);
-	    		        balance_out = PID_Update(&balance_pid, -0.5f, MPU_Pitch, 0.005f);
-	    		        Motor_SetSpeed(MOTOR_LEFT,  (int16_t)balance_out);
-	    		        Motor_SetSpeed(MOTOR_RIGHT, (int16_t)balance_out);
-	    	        /* ===== PID 控制放这里 ===== */
+	    	        ctrl_flag = 0;
+	    	        Control_BalanceLoop(0.005f);
 	    	    }
-
-	    	    /* 每 50ms：蓝牙发一次 */
-	    	if (HAL_GetTick() - last_send >= 50)
-	    	{
-	    	    last_send = HAL_GetTick();
-	    	    Encoder_Update();
-	    	    /* 一行 printf 搞定，自动走 _write → 蓝牙 */
-	    	    printf("%.2f,%.2f,%.0f,%d,%d\r\n",
-	    	                   MPU_Pitch, MPU_Roll, (double)balance_out,
-	    	                   (int)enc_left_speed, (int)enc_right_speed);
-	    	}
+	    	    /* 50ms：速度环 */
+	    	    if (HAL_GetTick() - last_speed >= 50)
+	    	    {
+	    	        last_speed = HAL_GetTick();
+	    	        Control_SpeedLoop(0.05f);
+	    	    }
+	    	    /* 50ms：蓝牙发送 */
+	    	    if (HAL_GetTick() - last_send >= 50)
+	    	    {
+	    	        last_send = HAL_GetTick();
+	    	        printf("%.2f,%.2f,%.0f,%.2f,%d,%d\r\n",
+	    	               MPU_Pitch, MPU_Roll,
+	    	               (double)Control_GetBalanceOut(), (double)Control_GetAngleCmd(),
+	    	               (int)enc_left_speed, (int)enc_right_speed);
+	    	    }
 
 
 
