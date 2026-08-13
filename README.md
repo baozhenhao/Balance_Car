@@ -93,8 +93,8 @@ angle(k) = 0.98 × [angle(k-1) + gyro(k)·dt] + 0.02 × angle_accel(k)
 最终实现原地驻留与受推扰动后自动恢复。
 
 ## 调试记录
-![调通前后波形对比](docs/shot3.png)(docs/shot2.png)
-
+![调通前后波形对比](docs/shot3.png)
+![调通前后波形对比](docs/shot2.png)
 
 ## 蓝牙在线调参
 
