@@ -1,11 +1,21 @@
-# STM32CubeIDE build output
+# STM32CubeIDE / Eclipse 工作区文件（本地 IDE 配置，不应入库）
+.metadata/
+
+# 编译产物
 Debug/
 Release/
-.settings/
-.project
-.cproject
-*.elf
-*.list
-*.map
 *.o
 *.d
+*.elf
+*.map
+*.hex
+*.bin
+*.lst
+*.su
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
