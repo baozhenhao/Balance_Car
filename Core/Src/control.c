@@ -16,11 +16,11 @@ static float speed_filtered = 0.0f;  /* 速度低通滤波 */
 void Control_Init(void)
 {
     /* 直立环：PD */
-    PID_Init(&balance_pid, 99.0f, 0.1f, 0.5f, -800.0f, 800.0f);
+    PID_Init(&balance_pid, 99.0f, 0.1f, 1.0f, -800.0f, 800.0f);
     balance_pid.use_integral = 0;
 
     /* 速度环：PI */
-    PID_Init(&speed_pid, 0.003f, 0.005f, 0.0f, -5.0f, 5.0f);
+    PID_Init(&speed_pid, 0.005f, 0.005f, 0.0f, -5.0f, 5.0f);
 }
 
 /* ===== 速度环：50ms 一次 =====
