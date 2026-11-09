@@ -129,6 +129,7 @@ int main(void)
 
    uint32_t last_send   = 0;
    uint32_t last_speed = 0;
+   uint32_t last_ctrl_tick = HAL_GetTick();
 
 	    while (1)
    {
@@ -137,7 +138,14 @@ int main(void)
 	    	    if (ctrl_flag)
 	    	    {
 	    	        ctrl_flag = 0;
-	    	        Control_BalanceLoop(0.005f);
+	    	        uint32_t now = HAL_GetTick();
+	    	        float dt = (now - last_ctrl_tick) * 0.001f;
+	    	        last_ctrl_tick = now;
+
+	    	        if (dt < 0.001f) dt = 0.001f;   /* 限幅 */
+	    	        if (dt > 0.020f) dt = 0.020f;
+
+	    	        Control_BalanceLoop(dt);
 	    	    }
 	    	    /* 50ms：速度环 */
 	    	    if (HAL_GetTick() - last_speed >= 50)
