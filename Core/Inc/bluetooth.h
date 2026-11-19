@@ -11,5 +11,6 @@ void BT_SendPose(int16_t pitch_filt, int16_t roll_filt,
 /* ===================== 接收（实时调参） ===================== */
 void BT_RxStart(void);          /* 初始化后调用一次，开启接收 */
 void BT_ParseLine(char *line);  /* 解析一行命令 */
+void BT_AckTask(void);          /* 主循环调用：发送排队的命令回显 */
 
 #endif /* __BLUETOOTH_H */

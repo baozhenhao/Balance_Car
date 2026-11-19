@@ -45,6 +45,36 @@ void BT_SendPose(int16_t pitch_filt, int16_t roll_filt,
     if (n > 0) BT_SendRaw((const uint8_t *)buf, (uint16_t)n);
 }
 
+/* ============ 回显队列：中断里只登记，主循环统一发送 ============ */
+/* 为什么不在中断里直接发：HAL_UART_Transmit_IT 不可重入。若接收中断里发回显、
+   同时主循环的遥测 printf 也在发，两个缓冲会被交叉发送 → 手机端乱码。            */
+volatile char    bt_ack_buf[64];
+volatile uint8_t bt_ack_len     = 0;
+volatile uint8_t bt_ack_pending = 0;
+
+static void BT_QueueAck(const char *s, int n)
+{
+    if (bt_ack_pending) return;                 /* 上一条还没发完就先丢掉，调试够用 */
+    if (n <= 0) return;
+    if (n > (int)sizeof(bt_ack_buf)) n = sizeof(bt_ack_buf);
+    for (int i = 0; i < n; i++) bt_ack_buf[i] = s[i];
+    bt_ack_len     = (uint8_t)n;
+    bt_ack_pending = 1;
+}
+
+/* 主循环里调用：等 UART 空闲再发，不和 50ms 遥测抢链路 */
+void BT_AckTask(void)
+{
+    static char tx[64];
+    if (!bt_ack_pending) return;
+    if (huart1.gState != HAL_UART_STATE_READY) return;
+
+    uint8_t n = bt_ack_len;
+    for (uint8_t i = 0; i < n; i++) tx[i] = bt_ack_buf[i];
+    bt_ack_pending = 0;                         /* 拷贝完再清，ISR 这期间来的新回显会被丢弃 */
+    HAL_UART_Transmit_IT(&huart1, (uint8_t *)tx, n);
+}
+
 /* ===================== 接收部分 ===================== */
 
 volatile uint8_t bt_rx_byte;      /* 单字节接收缓冲 */
@@ -83,7 +113,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 void BT_ParseLine(char *line)
 {
 
-    int kp_x, kd_x, skp_x, ski_x, tr_x;
+    int kp_x, kd_x, tr_x;
+    float skp_f, ski_f;      /* 速度环参数是 0.00x 量级，必须用 float 接 %f */
     /* ① 直立环：kp=9900,kd=50 */
     if (sscanf(line, "kp=%d,kd=%d", &kp_x, &kd_x) == 2)
     {
@@ -91,16 +122,16 @@ void BT_ParseLine(char *line)
         char ack[64];
         int n = sprintf(ack, "KP=%.2f KD=%.2f OK\r\n",
                         balance_pid.kp, balance_pid.kd);
-        HAL_UART_Transmit_IT(&huart1, (uint8_t*)ack, n);
+        BT_QueueAck(ack, n);
     }
-    /* ② 速度环：skp=60,ski=3  →  Kp=0.60, Ki=0.03 */
-    else if (sscanf(line, "skp=%f,ski=%f", &skp_x, &ski_x) == 2)
+    /* ② 速度环：skp=0.5,ski=0.5  →  Kp=0.005, Ki=0.005（和 kp 一样 ×0.01 缩放） */
+    else if (sscanf(line, "skp=%f,ski=%f", &skp_f, &ski_f) == 2)
     {
-        PID_SetGains(&speed_pid, skp_x/100.0f, ski_x/100.0f, 0.0f);
+        PID_SetGains(&speed_pid, skp_f/100.0f, ski_f/100.0f, 0.0f);
         char ack[64];
-        int n = sprintf(ack, "SKP=%.2f SKI=%.3f OK\r\n",
-                        speed_pid.kp, speed_pid.ki);
-        HAL_UART_Transmit_IT(&huart1, (uint8_t*)ack, n);
+        int n = sprintf(ack, "SKP=%.4f SKI=%.4f OK\r\n",
+                        (double)speed_pid.kp, (double)speed_pid.ki);
+        BT_QueueAck(ack, n);
     }
     /* ③ 目标角：tr=130  →  1.30° */
     else if (sscanf(line, "tr=%d", &tr_x) == 1)
@@ -108,6 +139,6 @@ void BT_ParseLine(char *line)
         angle_target = tr_x / 100.0f;
         char ack[64];
         int n = sprintf(ack, "TR=%.2f OK\r\n", (double)angle_target);
-        HAL_UART_Transmit_IT(&huart1, (uint8_t*)ack, n);
+        BT_QueueAck(ack, n);
     }
 }

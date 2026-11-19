@@ -162,6 +162,8 @@ int main(void)
 	    	               (double)Control_GetBalanceOut(), (double)Control_GetAngleCmd(),
 	    	               (int)enc_left_speed, (int)enc_right_speed);
 	    	    }
+	    	    /* 命令回显：排队后由主循环发送，避免和遥测抢 UART */
+	    	    BT_AckTask();
 
 
 
